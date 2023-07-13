@@ -13,6 +13,26 @@ import (
 	"time"
 )
 
+// func addXMLAttribute(obj interface{}, fieldName, attrName, attrValue string) {
+// 	v := reflect.ValueOf(obj).Elem()
+// 	field := v.FieldByName(fieldName)
+
+// 	if field.IsValid() && field.Kind() == reflect.Map {
+// 		structField, _ := v.Type().FieldByName(fieldName)
+// 		tag := structField.Tag.Get("xml")
+// 		tag += fmt.Sprintf(" %s,%s=\"%s\"", attrName, xml.Name{Local: "attr"}, attrValue)
+// 		fmt.Print(tag)
+// 		structField.Tag = reflect.StructTag(tag)
+// 	}
+// }
+
+// func modifyXMLTag(obj interface{}, fieldName, str string) {
+// 	v := reflect.ValueOf(obj).Elem()
+// 	structField, _ := v.Type().FieldByName(fieldName)
+// 	tag := strings.Replace(structField.Tag.Get("xml"), "%s", str, 1)
+// 	structField.Tag = reflect.StructTag(fmt.Sprintf("xml:\"%s\"", tag))
+// }
+
 type SOAPEncoder interface {
 	Encode(v interface{}) error
 	Flush() error
@@ -30,11 +50,24 @@ type SOAPEnvelopeResponse struct {
 }
 
 type SOAPEnvelope struct {
-	XMLName xml.Name      `xml:"soap:Envelope"`
-	XmlNS   string        `xml:"xmlns:soap,attr"`
-	Headers []interface{} `xml:"soap:Header"`
-	Body    SOAPBody
+	XMLName   xml.Name `xml:"soapenv:Envelope"`
+	XmlNS     string   `xml:"xmlns:soapenv,attr"`
+	XmlWebNS  string   `xml:"xmlns:web,attr"`
+	XmlWeb1NS string   `xml:"xmlns:web1,attr"`
+	Headers   []interface{}
+	Body      SOAPBody
 }
+
+// func (b *SOAPEnvelope) setPrefix(prefix string, attrs map[string]string) {
+// 	// 设置 XMLName 标签
+// 	if prefix == "" {
+// 		prefix = "soap"
+// 	}
+// 	modifyXMLTag(b, "XMLName", prefix)
+// 	for k, v := range attrs {
+// 		addXMLAttribute(b, "XmlNSAttrs", fmt.Sprintf("xmlns:%s", k), v)
+// 	}
+// }
 
 type SOAPHeaderResponse struct {
 	XMLName xml.Name `xml:"Header"`
@@ -43,7 +76,7 @@ type SOAPHeaderResponse struct {
 }
 
 type SOAPBody struct {
-	XMLName xml.Name `xml:"soap:Body"`
+	XMLName xml.Name `xml:"soapenv:Body"`
 
 	Content interface{} `xml:",omitempty"`
 
@@ -187,6 +220,8 @@ const (
 	WssNsType       string = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"
 	mtomContentType string = `multipart/related; start-info="application/soap+xml"; type="application/xop+xml"; boundary="%s"`
 	XmlNsSoapEnv    string = "http://schemas.xmlsoap.org/soap/envelope/"
+	XmlNsWebEnv     string = "webservices.services.weaver.com.cn"
+	XmlNsWeb1Env    string = "http://webservices.workflow.weaver"
 )
 
 type WSSSecurityHeader struct {
@@ -355,6 +390,14 @@ func NewClient(url string, opt ...Option) *Client {
 	}
 }
 
+// // 增加自定义命名空间 envelope
+// func (s *Client) AddCustomEnvelopeAttrs(prefix string, attrs map[string]string) {
+// 	if attrs != nil {
+// 		s.customEnvelopeAttrs = attrs
+// 	}
+// 	s.envelopePrefix = prefix
+// }
+
 // AddHeader adds envelope header
 // For correct behavior, every header must contain a `XMLName` field.  Refer to #121 for details
 func (s *Client) AddHeader(header interface{}) {
@@ -409,9 +452,16 @@ func (s *Client) CallWithFaultDetail(soapAction string, request, response interf
 func (s *Client) call(ctx context.Context, soapAction string, request, response interface{}, faultDetail FaultError,
 	retAttachments *[]MIMEMultipartAttachment) error {
 	// SOAP envelope capable of namespace prefixes
+	// envelope := SOAPEnvelope{
+	// 	XmlNS: XmlNsSoapEnv,
+	// }
+	// envelope := SOAPEnvelope{}
 	envelope := SOAPEnvelope{
-		XmlNS: XmlNsSoapEnv,
+		XmlNS:     XmlNsSoapEnv,
+		XmlWebNS:  XmlNsWebEnv,
+		XmlWeb1NS: XmlNsWeb1Env,
 	}
+	// envelope.setPrefix(s.envelopePrefix, s.customEnvelopeAttrs)
 
 	envelope.Headers = s.headers
 
